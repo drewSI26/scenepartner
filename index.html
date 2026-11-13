@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Scene Partner</title>
+<style>
+  :root {
+    --bg: #f6f3ee; --panel: #ffffff; --ink: #1d1b19; --muted: #6b665f; --line: #e2ddd5;
+    --accent: #b5452b; --accent-ink: #fff; --me: #2a6f97; --me-bg: #e6f0f6; --partner-bg: #fbf1ec;
+    --ok: #2e7d32; --warn: #b26a00; --hl: #fff3b0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17161a; --panel: #211f24; --ink: #ece8e1; --muted: #9b958c; --line: #343138;
+      --accent: #e0694a; --me: #6fb2d9; --me-bg: #1d2b36; --partner-bg: #2e2320; --hl: #4a4220;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 Georgia, "Times New Roman", serif; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; font-family: system-ui, sans-serif; font-size: 14px; }
+  header h1 { font: 600 17px system-ui, sans-serif; margin: 0 8px 0 0; }
+  header label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  select, input[type=text], input[type=password], input[type=number] { font: inherit; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+  input[type=range] { width: 90px; }
+  button { font: 500 14px system-ui, sans-serif; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  .filebtn { position: relative; overflow: hidden; }
+  .filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 160px; }
+  .empty { text-align: center; color: var(--muted); padding: 60px 16px; font-family: system-ui, sans-serif; }
+  .empty textarea { width: 100%; height: 160px; margin-top: 16px; font: 13px/1.4 ui-monospace, monospace; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+  .scene { margin: 28px 0 10px; font: 600 13px system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 10px; }
+  .scene .skip { font-weight: 400; text-transform: none; letter-spacing: 0; font-style: italic; }
+  .action { color: var(--muted); font-style: italic; margin: 10px 0; padding-left: 4px; }
+  .cue { margin: 10px 0; padding: 10px 14px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; }
+  .cue .who { font: 600 12px system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .cue.partner { background: var(--partner-bg); }
+  .cue.me { background: var(--me-bg); border-color: color-mix(in srgb, var(--me) 30%, transparent); }
+  .cue.me .who { color: var(--me); }
+  .cue .paren { color: var(--muted); font-style: italic; font-size: 14px; }
+  .cue.current { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .cue.me.hidden .text { filter: blur(6px); user-select: none; }
+  .cue.me.hidden.current .text { filter: blur(6px); }
+  .cue.me.hidden.current.reveal .text, .cue.me.hidden:hover .text { filter: none; }
+  .cue .text .w.hit { background: color-mix(in srgb, var(--ok) 22%, transparent); border-radius: 3px; }
+  .cue .text .w.miss { text-decoration: underline wavy var(--warn); }
+  .cue .score { font: 12px system-ui, sans-serif; color: var(--muted); margin-top: 4px; }
+  footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--panel); border-top: 1px solid var(--line); padding: 10px 16px 14px; font-family: system-ui, sans-serif; }
+  .foot-in { max-width: 760px; margin: 0 auto; display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; align-items: center; }
+  .status { font-size: 14px; color: var(--muted); min-height: 20px; }
+  .status b { color: var(--ink); }
+  .status .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); margin-right: 6px; vertical-align: middle; }
+  .status .dot.live { background: #d33; animation: pulse 1s infinite; }
+  .status .dot.speak { background: var(--accent); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .heard { font-size: 14px; color: var(--ink); min-height: 20px; grid-column: 1 / -1; opacity: .85; }
+  .heard.empty { color: var(--muted); font-style: italic; }
+  .controls { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; color: var(--muted); }
+  details.adv { font-family: system-ui, sans-serif; font-size: 14px; margin: 0 0 20px; color: var(--muted); }
+  details.adv summary { cursor: pointer; }
+  details.adv .grid { display: grid; grid-template-columns: max-content 1fr; gap: 8px 12px; align-items: center; margin-top: 10px; }
+  .voices { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; align-items: center; margin-top: 10px; }
+  .note { font-size: 13px; color: var(--muted); grid-column: 1 / -1; }
+  @media (max-width: 640px) { .foot-in { grid-template-columns: 1fr; } .controls { justify-content: flex-start; } }
+  /* teleprompter mode */
+  #tpbar { display: none; position: sticky; top: 0; z-index: 6; background: var(--panel); border-bottom: 1px solid var(--line); padding: 8px 16px; font: 14px system-ui, sans-serif; gap: 10px 16px; flex-wrap: wrap; align-items: center; }
+  #tpbar label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  body.tp header, body.tp details.adv { display: none; }
+  body.tp footer { background: #141414; border-color: #333; color: #ddd; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+  body.tp footer button { background: #222; color: #eee; border-color: #444; }
+  body.tp footer button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  body.tp .status { color: #aaa; } body.tp .status b { color: #fff; } body.tp .heard { color: #ddd; }
+  body.tp.live .cue:not(.current) { opacity: .4; }
+  body.tp.live .cue.current .text { color: #fff; }
+  body.tp.live .action, body.tp.live .scene { opacity: .4; }
+  body.tp #tpbar { display: flex; }
+  body.tp { background: #000; color: #fff; }
+  body.tp main { max-width: none; padding: 40vh 6vw 70vh; font-size: var(--tp-size, 44px); line-height: 1.35; }
+  body.tp .scene { font-size: .45em; color: #888; margin: 1.2em 0 .4em; }
+  body.tp .action { font-size: .6em; color: #999; }
+  body.tp .cue { background: none !important; border: none !important; outline: none !important; padding: .2em 0; margin: .5em 0; cursor: default; }
+  body.tp .cue .who { font-size: .4em; color: #8ab4d4; }
+  body.tp .cue.me .who { color: #f0b77a; }
+  body.tp .cue.hidden .text { filter: none !important; }
+  body.tp .cue .text .w.hit { background: none; }
+  body.tp .cue .text .w.miss { text-decoration: none; }
+  body.tp .cue .score { display: none; }
+  body.tp .w.now { background: #3d3410; border-radius: .1em; }
+  body.tp.mirror main { transform: scaleX(-1); }
+  body.tp.flipv main { transform: scaleY(-1); }
+  body.tp.mirror.flipv main { transform: scale(-1, -1); }
+  #guide { display: none; position: fixed; left: 0; right: 0; top: 35vh; height: 0; border-top: 2px solid rgba(255, 120, 60, .55); pointer-events: none; z-index: 4; }
+  body.tp #guide { display: block; }
+  body.tp.hidebar #tpbar { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Scene Partner</h1>
+  <button class="filebtn">Load sides (PDF)<input type="file" id="file" accept="application/pdf,.pdf,.txt"></button>
+  <label>I'm reading <select id="me"></select></label>
+  <label><input type="checkbox" id="hide"> Hide my lines</label>
+  <label><input type="checkbox" id="skipScenes" checked> Skip scenes I'm not in</label>
+  <label>Speed <input type="range" id="rate" min="0.7" max="1.3" step="0.05" value="1"></label>
+  <button id="tpBtn" title="Teleprompter mode (T)">Teleprompter</button>
+</header>
+<div id="tpbar">
+  <button id="tpExit">✕ Exit</button>
+  <button id="tpPlay" class="primary">▶ Scroll</button>
+  <label>Scroll speed <input type="range" id="tpSpeed" min="10" max="200" step="5" value="60"></label>
+  <label>Text size <input type="range" id="tpSize" min="24" max="96" step="2" value="44"></label>
+  <label><input type="checkbox" id="tpFollow" checked> Follow my voice</label>
+  <label><input type="checkbox" id="tpMirror"> Mirror</label>
+  <label><input type="checkbox" id="tpFlip"> Flip vertical</label>
+  <label><input type="checkbox" id="tpAll" checked> Show everyone's lines</label>
+  <button id="tpTop">⤒ Top</button>
+  <button id="tpFull">⛶ Full screen</button>
+  <span style="color:var(--muted)"><kbd>Space</kbd> scroll · <kbd>↑</kbd><kbd>↓</kbd> speed · <kbd>H</kbd> hide bar · <kbd>Esc</kbd> exit</span>
+</div>
+<div id="guide"></div>
+
+<main>
+  <details class="adv" id="adv">
+    <summary>Voices &amp; listening settings</summary>
+    <div class="grid">
+      <span>Voice engine</span>
+      <span>
+        <select id="engine"><option value="browser">Browser (free)</option><option value="eleven">ElevenLabs (natural)</option></select>
+      </span>
+      <span id="elKeyLabel">ElevenLabs API key</span>
+      <span><input type="password" id="elKey" placeholder="xi-..." style="width: 260px"> <button id="elLoad">Load voices</button></span>
+      <span>Partner voices</span>
+      <div class="voices" id="voices"></div>
+      <span>End-of-line pause</span>
+      <span><input type="range" id="pauseMs" min="300" max="3000" step="100" value="900"> <span id="pauseVal">0.9s</span> <span class="note" style="display:inline">(fallback if the words don't match)</span></span>
+      <span>Beat before partner</span>
+      <span><input type="range" id="beatMs" min="0" max="1500" step="50" value="100"> <span id="beatVal">0.10s</span></span>
+      <span>Read stage directions</span>
+      <span><input type="checkbox" id="readAction"></span>
+      <p class="note">Keys: <kbd>Space</kbd> next / mark my line done · <kbd>R</kbd> repeat partner line · <kbd>L</kbd> prompt my line · <kbd>B</kbd> back · <kbd>Esc</kbd> stop. Saying “line” out loud also prompts you.</p>
+    </div>
+  </details>
+  <div id="script"></div>
+</main>
+
+<footer>
+  <div class="foot-in">
+    <div class="status" id="status"><span class="dot"></span>Load a PDF of your sides to begin.</div>
+    <div class="controls">
+      <button id="back" title="Back (B)">◂ Back</button>
+      <button id="repeat" title="Repeat partner line (R)">↻ Repeat</button>
+      <button id="prompt" title="Prompt my line (L)">Line?</button>
+      <button id="next" title="Next (Space)">Next ▸</button>
+      <button id="run" class="primary">▶ Start</button>
+    </div>
+    <div class="heard empty" id="heard"></div>
+  </div>
+</footer>
+
+<script type="module">
+import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+
+// ---------- state ----------
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('sp.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('sp.' + k, JSON.stringify(v)); } catch {} },
+};
+let cues = [];          // {type:'scene'|'action'|'line', text, character, parens:[], scene}
+let scenes = [];        // {title, hasMe}
+let characters = [];
+let me = store.get('me', null);
+let idx = 0;
+let running = false;
+let turnToken = 0;      // increments to cancel in-flight waits
+let voicesMap = store.get('voices', {});       // character -> browser voice name
+let elVoicesMap = store.get('elVoices', {});   // character -> elevenlabs voice id
+let elVoiceList = [];
+const audioCache = new Map();                  // cue index -> blob url
+
+// ---------- PDF parsing ----------
+const JUNK = [/^\(?CONTINUED:?\)?(\s*\(\d+\))?$/i, /^\(MORE\)$/i, /^Sides by Breakdown/i, /^Prod\.\s/i, /^\d{6,}\s*-\s*\w{3}\s+\d+,\s+\d{4}/];
+function isJunk(t) {
+  if (!t.trim()) return true;
+  if (JUNK.some(r => r.test(t.trim()))) return true;
+  // repeated-token watermark, e.g. NAME-NAME-NAME- or "123 - Nov 4, 2026 6:41 AM - 123 - ..."
+  const toks = t.split(/[\s\-–]+/).filter(Boolean);
+  if (toks.length >= 8) { const uniq = new Set(toks); if (uniq.size <= Math.max(3, toks.length / 4)) return true; }
+  return false;
+}
+const CUE_RE = /^([A-Z][A-Z0-9 .'’#\-]{0,30}?)(?:\s*\((CONT'D|CONT’D|V\.O\.|O\.S\.|O\.C\.)\))?\s*$/;
+const NOT_CUE = /^(INT\.|EXT\.|INT\/EXT|I\/E|END OF|ACT |TEASER|COLD OPEN|CONTINUED|FADE|CUT TO|SMASH|THE END|OMITTED)/;
+function isSceneHeading(t) { return /^(INT\.|EXT\.|INT\/EXT|I\/E\.?)\s/.test(t.trim()); }
+function isMarker(t) { return /^(END OF|ACT |TEASER|COLD OPEN|FADE|CUT TO|SMASH)/.test(t.trim()); }
+function cueName(t) { const m = t.trim().match(CUE_RE); if (!m || NOT_CUE.test(t.trim())) return null; const n = m[1].trim(); return n.length >= 2 ? n : null; }
+
+async function parsePdf(buf) {
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const pageLines = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    // group items by y
+    const rows = new Map();
+    for (const it of tc.items) {
+      if (!it.str || !it.str.trim() && it.width === 0) continue;
+      if (Math.abs(it.transform[1]) > 0.01 || Math.abs(it.transform[2]) > 0.01) continue; // rotated watermark text
+      const y = Math.round(it.transform[5]);
+      const key = [...rows.keys()].find(k => Math.abs(k - y) <= 2) ?? y;
+      if (!rows.has(key)) rows.set(key, []);
+      rows.get(key).push({ x: it.transform[4], w: it.width, s: it.str });
+    }
+    const lines = [];
+    for (const [y, items] of [...rows.entries()].sort((a, b) => b[0] - a[0])) {
+      items.sort((a, b) => a.x - b.x);
+      // split into columns on large gaps (dual dialogue), join with spaces on word gaps
+      const cols = []; let cur = null; let prevEnd = null;
+      for (const it of items) {
+        const gap = prevEnd == null ? 0 : it.x - prevEnd;
+        if (!cur || gap > 35) { cur = { x: it.x, text: '' }; cols.push(cur); }
+        else if (gap > 2.5 && !cur.text.endsWith(' ') && !it.s.startsWith(' ')) cur.text += ' ';
+        cur.text += it.s; prevEnd = it.x + it.w;
+      }
+      for (const c of cols) { c.text = c.text.replace(/\s+/g, ' ').trim(); }
+      if (isJunk(cols.map(c => c.text).join(' '))) continue; // footer / watermark row
+      const kept = cols.filter(c => c.text && !isJunk(c.text));
+      if (kept.length) lines.push({ y, cols: kept });
+    }
+    pageLines.push(lines);
+  }
+  window.__sp && (window.__sp.lastRows = pageLines);
+  // find column positions from pages that contain cues
+  const xs = [];
+  for (const lines of pageLines) for (const l of lines) for (const c of l.cols) xs.push({ x: Math.round(c.x), t: c.text });
+  const mode = arr => { const m = new Map(); for (const v of arr) m.set(v, (m.get(v) || 0) + 1); return [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]; };
+  const actionX = mode(xs.filter(o => /[a-z]/.test(o.t) && o.t.length > 40).map(o => o.x));
+  const charX = mode(xs.filter(o => cueName(o.t) && Math.abs(o.x - actionX) > 20).map(o => o.x));
+  if (actionX == null || charX == null) throw new Error('Could not find a screenplay layout in this PDF.');
+  const dlgLo = actionX + (charX - actionX) * 0.25, dlgHi = charX - 8;
+
+  const out = [];
+  for (const lines of pageLines) {
+    if (!lines.some(l => l.cols.some(c => Math.abs(c.x - charX) < 12 && cueName(c.text)))) continue; // instructions page etc.
+    let open = [];        // open dialogue columns: {cue, xmin, xmax}
+    let lastY = null;
+    for (const l of lines) {
+      const gap = lastY == null ? 0 : lastY - l.y;
+      lastY = l.y;
+      if (gap > 16) { open = []; const la = out[out.length - 1]; if (la && la.type === 'action') la.closed = true; }  // blank line ends dialogue and action blocks
+      const cueCols = l.cols.filter(c => cueName(c.text) && c.x > dlgLo && !isSceneHeading(c.text));
+      if (cueCols.length && cueCols.length === l.cols.length && !/[a-z]{3}/.test(l.cols.map(c => c.text).join(''))) {
+        open = cueCols.map((c, i) => {
+          const name = cueName(c.text).replace(/\s+/g, ' ');
+          const cont = /CONT/.test(c.text);
+          const cue = { type: 'line', character: name, text: '', parens: [], cont };
+          out.push(cue);
+          const xmin = cueCols.length > 1 ? (i === 0 ? -1e9 : (cueCols[i - 1].x + c.x) / 2) : -1e9;
+          const xmax = cueCols.length > 1 ? (i === cueCols.length - 1 ? 1e9 : (c.x + cueCols[i + 1].x) / 2) : 1e9;
+          return { cue, xmin, xmax };
+        });
+        continue;
+      }
+      for (const c of l.cols) {
+        const t = c.text;
+        if (isSceneHeading(t)) { out.push({ type: 'scene', text: t }); open = []; continue; }
+        if (isMarker(t)) { open = []; continue; }
+        const col = open.length > 1 ? open.find(o => c.x >= o.xmin && c.x < o.xmax) : (open[0] && (c.x > dlgLo && c.x < charX + 40) ? open[0] : null);
+        if (col) {
+          if (/^\(.*\)$/.test(t)) col.cue.parens.push(t);
+          else if (/^\(/.test(t) && !/\)/.test(t)) col.cue.parens.push(t); // multi-line parenthetical start (rare)
+          else col.cue.text += (col.cue.text ? ' ' : '') + t;
+        } else {
+          open = [];
+          const last = out[out.length - 1];
+          if (last && last.type === 'action' && !last.closed) last.text += ' ' + t; else out.push({ type: 'action', text: t });
+        }
+      }
+      // close action paragraphs on blank gaps (handled via gap on next line)
+      if (out.length && out[out.length - 1].type === 'action') out[out.length - 1].pendingY = l.y;
+    }
+  }
+  // merge (CONT'D) lines that continue straight from the same speaker across a page break
+  const merged = [];
+  for (const c of out) {
+    const prev = merged[merged.length - 1];
+    if (c.type === 'line' && c.cont && prev && prev.type === 'line' && prev.character === c.character) {
+      prev.text += (prev.text && c.text ? ' ' : '') + c.text; prev.parens.push(...c.parens); continue;
+    }
+    if (c.type === 'line' && !c.text.trim()) continue;
+    merged.push(c);
+  }
+  return merged;
+}
+
+// plain-text fallback: NAME in caps on its own line, dialogue until blank line
+function parseText(txt) {
+  const out = []; let cur = null;
+  for (const raw of txt.split(/\r?\n/)) {
+    const t = raw.trim();
+    if (!t) { cur = null; continue; }
+    if (isSceneHeading(t)) { out.push({ type: 'scene', text: t }); cur = null; continue; }
+    const n = cueName(t);
+    if (n && raw.length < 40) { cur = { type: 'line', character: n, text: '', parens: [] }; out.push(cur); continue; }
+    if (cur) { if (/^\(.*\)$/.test(t)) cur.parens.push(t); else cur.text += (cur.text ? ' ' : '') + t; }
+    else out.push({ type: 'action', text: t });
+  }
+  return out.filter(c => c.type !== 'line' || c.text);
+}
+
+// ---------- after parse ----------
+function setScript(list, name) {
+  cues = list;
+  scenes = []; let s = -1;
+  for (const c of cues) {
+    if (c.type === 'scene' || s < 0) { s++; scenes.push({ title: c.type === 'scene' ? c.text : 'Scene', hasMe: false }); }
+    c.scene = s;
+  }
+  const counts = {};
+  for (const c of cues) if (c.type === 'line') counts[c.character] = (counts[c.character] || 0) + 1;
+  characters = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  if (!characters.includes(me)) me = guessMe(name) || characters[0];
+  store.set('me', me);
+  store.set('script', { name, cues });
+  $('me').innerHTML = characters.map(c => `<option ${c === me ? 'selected' : ''}>${c}</option>`).join('');
+  recomputeScenes();
+  idx = firstPlayable(0);
+  buildVoiceRows();
+  render();
+  setStatus(`Loaded <b>${name}</b>. ${characters.length} characters, ${cues.filter(c => c.type === 'line').length} lines. Press Start.`);
+}
+function guessMe(name) { const up = (name || '').toUpperCase(); return characters.find(c => up.includes(c.split(' ')[0])); }
+function recomputeScenes() { for (const s of scenes) s.hasMe = false; for (const c of cues) if (c.type === 'line' && c.character === me) scenes[c.scene].hasMe = true; }
+function sceneOn(i) { return !$('skipScenes').checked || scenes[i].hasMe; }
+function firstPlayable(from) { for (let i = from; i < cues.length; i++) if (cues[i].type === 'line' && sceneOn(cues[i].scene)) return i; return cues.length; }
+
+// ---------- render ----------
+function spokenText(c) { return c.text.replace(/\([^)]*\)/g, ' ').replace(/\s*--\s*$/, '…').replace(/\s*--\s*/g, ', ').replace(/\s+/g, ' ').trim(); }
+function render() {
+  const el = $('script');
+  if (!cues.length) {
+    el.innerHTML = `<div class="empty">Load a PDF of your sides, or paste the script as text below (character names in CAPS on their own line).<textarea id="paste" placeholder="VIOLET\nWhat kind of episode?\n\nBEN\nHe just like... stopped talking."></textarea><div style="margin-top:8px"><button id="pasteBtn">Use pasted text</button></div></div>`;
+    $('pasteBtn').onclick = () => { const t = $('paste').value; if (t.trim()) setScript(parseText(t), 'pasted script'); };
+    return;
+  }
+  const hide = $('hide').checked;
+  let html = '';
+  cues.forEach((c, i) => {
+    if (c.type === 'scene') { html += `<div class="scene" data-i="${i}">${esc(c.text)}${sceneOn(c.scene) ? '' : '<span class="skip">(skipped, you are not in it)</span>'}</div>`; return; }
+    if (c.type === 'action') { html += `<div class="action" data-i="${i}">${esc(c.text)}</div>`; return; }
+    const mine = c.character === me;
+    const words = spokenText(c).split(' ').map((w, k) => `<span class="w" data-k="${k}">${esc(w)}</span>`).join(' ');
+    const paren = c.parens.length ? `<span class="paren">${esc(c.parens.join(' '))}</span> ` : '';
+    html += `<div class="cue ${mine ? 'me' : 'partner'} ${mine && hide ? 'hidden' : ''} ${i === idx ? 'current' : ''}" data-i="${i}" id="cue${i}">
+      <div class="who">${esc(c.character)}</div><div class="text">${paren}${words}</div>${c.score != null ? `<div class="score">${c.score}</div>` : ''}</div>`;
+  });
+  el.innerHTML = html;
+  el.querySelectorAll('.cue').forEach(d => d.onclick = () => { if (!running) { setCurrent(+d.dataset.i); } });
+}
+function esc(s) { return s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
+function setCurrent(i) {
+  idx = i;
+  document.querySelectorAll('.cue.current').forEach(d => d.classList.remove('current', 'reveal'));
+  const d = $('cue' + i);
+  if (d) { d.classList.add('current'); if (tp) window.scrollTo({ top: d.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.33, behavior: 'smooth' }); else d.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+}
+function setStatus(html, dot = '') { $('status').innerHTML = `<span class="dot ${dot}"></span>${html}`; }
+function setHeard(t) { const h = $('heard'); h.textContent = t || ''; h.classList.toggle('empty', !t); if (!t) h.textContent = ''; }
+
+// ---------- speech synthesis ----------
+let browserVoices = [];
+function loadBrowserVoices() {
+  browserVoices = speechSynthesis.getVoices().filter(v => v.lang.startsWith('en'));
+  // prefer natural-sounding ones first
+  const rank = v => (/Natural|Online|Neural/i.test(v.name) ? 0 : /Google/i.test(v.name) ? 1 : 2);
+  browserVoices.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+  buildVoiceRows();
+}
+speechSynthesis.onvoiceschanged = loadBrowserVoices;
+loadBrowserVoices();
+
+function buildVoiceRows() {
+  const wrap = $('voices'); wrap.innerHTML = '';
+  const eng = $('engine').value;
+  const partners = characters.filter(c => c !== me);
+  partners.forEach((ch, i) => {
+    const lab = document.createElement('span'); lab.textContent = ch;
+    const sel = document.createElement('select');
+    if (eng === 'browser') {
+      if (!voicesMap[ch] && browserVoices.length) voicesMap[ch] = browserVoices[i % browserVoices.length].name;
+      sel.innerHTML = browserVoices.map(v => `<option value="${esc(v.name)}" ${v.name === voicesMap[ch] ? 'selected' : ''}>${esc(v.name.replace(/Microsoft |Google |Online \(Natural\) - English \(United States\)/g, ''))}</option>`).join('');
+      sel.onchange = () => { voicesMap[ch] = sel.value; store.set('voices', voicesMap); audioCache.clear(); };
+    } else {
+      if (!elVoicesMap[ch] && elVoiceList.length) elVoicesMap[ch] = elVoiceList[i % elVoiceList.length].voice_id;
+      sel.innerHTML = elVoiceList.length ? elVoiceList.map(v => `<option value="${v.voice_id}" ${v.voice_id === elVoicesMap[ch] ? 'selected' : ''}>${esc(v.name)}${v.labels?.gender ? ' · ' + v.labels.gender : ''}${v.labels?.age ? ' · ' + v.labels.age : ''}</option>`).join('') : '<option value="">Enter key and click Load voices</option>';
+      sel.onchange = () => { elVoicesMap[ch] = sel.value; store.set('elVoices', elVoicesMap); audioCache.clear(); };
+    }
+    const test = document.createElement('button'); test.textContent = '▶'; test.title = 'Preview'; test.style.marginLeft = '6px';
+    test.onclick = async () => { const c = cues.find(x => x.type === 'line' && x.character === ch); await speak(c ? spokenText(c) : 'Hello, this is ' + ch, ch); };
+    const cell = document.createElement('span'); cell.append(sel, test);
+    wrap.append(lab, cell);
+  });
+  store.set('voices', voicesMap);
+}
+
+function speakBrowser(text, ch, token) {
+  return new Promise(res => {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const v = browserVoices.find(v => v.name === voicesMap[ch]); if (v) u.voice = v;
+    u.rate = +$('rate').value; u.pitch = 1;
+    let done = false; const finish = () => { if (!done) { done = true; res(); } };
+    u.onend = finish; u.onerror = finish; u.onstart = () => { if (ch !== '__prompt') notePartnerStart(); };
+    speechSynthesis.speak(u);
+    // Chrome sometimes drops onend; poll as a safety net
+    const t = setInterval(() => { if (done || token !== turnToken) { clearInterval(t); finish(); } else if (!speechSynthesis.speaking && !speechSynthesis.pending) { clearInterval(t); finish(); } }, 250);
+  });
+}
+async function elFetch(text, ch) {
+  const key = $('elKey').value.trim(); const vid = elVoicesMap[ch];
+  if (!key || !vid) throw new Error('ElevenLabs key or voice missing');
+  const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${vid}?output_format=mp3_44100_128`, {
+    method: 'POST', headers: { 'xi-api-key': key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, model_id: 'eleven_flash_v2_5', voice_settings: { stability: 0.4, similarity_boost: 0.8, style: 0.35 } }),
+  });
+  if (!r.ok) throw new Error('ElevenLabs ' + r.status + ': ' + (await r.text()).slice(0, 200));
+  return URL.createObjectURL(await r.blob());
+}
+const preloaded = new Map();   // blob url -> decoded Audio element, ready to play instantly
+async function elAudioFor(i) {
+  if (!audioCache.has(i)) audioCache.set(i, elFetch(spokenText(cues[i]), cues[i].character).then(url => { const a = new Audio(url); a.preload = 'auto'; a.load(); preloaded.set(url, a); return url; }).catch(e => { audioCache.delete(i); throw e; }));
+  return audioCache.get(i);
+}
+function prefetch(from, n = 3) {
+  if ($('engine').value !== 'eleven') return;
+  let k = 0;
+  for (let i = from; i < cues.length && k < n; i++) if (cues[i].type === 'line' && cues[i].character !== me && sceneOn(cues[i].scene)) { k++; elAudioFor(i).catch(() => {}); }
+}
+let currentAudio = null;
+function playUrl(url, token) {
+  return new Promise(res => {
+    const a = preloaded.get(url) || new Audio(url); preloaded.delete(url); currentAudio = a; a.playbackRate = +$('rate').value;
+    a.onended = a.onerror = () => res(); a.onplaying = notePartnerStart; a.play().catch(() => res());
+    const t = setInterval(() => { if (token !== turnToken) { clearInterval(t); a.pause(); res(); } else if (a.ended) clearInterval(t); }, 200);
+  });
+}
+async function speak(text, ch, cueIndex = null) {
+  const token = turnToken;
+  if ($('engine').value === 'eleven') {
+    try { const url = cueIndex != null ? await elAudioFor(cueIndex) : await elFetch(text, ch); if (token !== turnToken) return; return await playUrl(url, token); }
+    catch (e) { setStatus(`ElevenLabs failed (${esc(e.message)}). Using browser voice.`, 'speak'); }
+  }
+  return speakBrowser(text, ch, token);
+}
+function stopSpeaking() { speechSynthesis.cancel(); if (currentAudio) { currentAudio.pause(); currentAudio = null; } }
+
+// ---------- speech recognition ----------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, recWanted = false, onTranscript = null, micBlocked = false;
+let recSession = 0, recFinals = [], recInterim = '';   // current recognizer session contents
+function startRec() {
+  if (!SR) return;
+  recWanted = true;
+  if (rec) return;
+  rec = new SR(); rec.continuous = true; rec.interimResults = true; rec.lang = 'en-US'; rec.maxAlternatives = 1;
+  recSession++; recFinals = []; recInterim = '';
+  rec.onresult = e => {
+    const fin = []; let inter = '';
+    for (let i = 0; i < e.results.length; i++) { const t = e.results[i][0].transcript.trim(); if (e.results[i].isFinal) fin.push(t); else inter += ' ' + t; }
+    recFinals = fin; recInterim = inter.trim();
+    onTranscript && onTranscript();
+  };
+  rec.onend = () => { rec = null; if (recWanted) setTimeout(startRec, 50); };
+  rec.onerror = e => { if (e.error === 'not-allowed' || e.error === 'audio-capture') { recWanted = false; micBlocked = true; setStatus('Microphone blocked. Allow the mic in the address bar for automatic cues. Until then press <kbd>Space</kbd> when you finish each line.', 'live'); } };
+  try { rec.start(); } catch {}
+}
+function stopRec() { recWanted = false; onTranscript = null; if (rec) { try { rec.stop(); } catch {} rec = null; } }
+
+// ---------- matching ----------
+const norm = s => s.toLowerCase().replace(/[’‘]/g, "'").replace(/[^a-z0-9' ]+/g, ' ').split(/\s+/).filter(Boolean);
+function lev(a, b) { const m = a.length, n = b.length; if (!m) return n; if (!n) return m; let prev = [...Array(n + 1).keys()]; for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; } return prev[n]; }
+function sim(a, b) { if (a === b) return 1; const L = Math.max(a.length, b.length); return 1 - lev(a, b) / L; }
+const wordOk = (e, t) => e === t || (e.length >= 5 && sim(e, t) >= 0.6) || (e.length > 2 && sim(e, t) >= 0.7) || (e.length <= 2 && t === e);
+// greedy in-order alignment: which expected words were heard
+function align(E, T) {
+  const hit = new Array(E.length).fill(false); let j = 0;
+  for (let i = 0; i < E.length; i++) { for (let k = j; k < Math.min(T.length, j + 6); k++) { if (wordOk(E[i], T[k])) { hit[i] = true; j = k + 1; break; } } }
+  return hit;
+}
+// true once the END of the line has been heard: the last expected word is the last word heard
+// (plus one of the two before it), or, if the final word was misheard, the two words before it
+// were heard and at least as many words as the line has.
+function tailMatched(E, T) {
+  if (!T.length) return false;
+  const n = Math.min(3, E.length);
+  const tail = E.slice(-n), recent = T.slice(-8);
+  const lastOk = wordOk(tail[n - 1], recent[recent.length - 1]);
+  let j = 0, got = 0;
+  for (const e of tail.slice(0, n - 1)) { for (let k = j; k < recent.length - 1; k++) if (wordOk(e, recent[k])) { got++; j = k + 1; break; } }
+  if (n === 1) return lastOk;
+  if (lastOk) return got >= 1;
+  return n === 3 && got === 2 && T.length >= E.length;
+}
+
+// wait for my line to be spoken; resolves {heard, hit}
+function listenForLine(i) {
+  const c = cues[i], E = norm(spokenText(c));
+  const el = $('cue' + i), ws = el ? [...el.querySelectorAll('.w')] : [];
+  return new Promise(res => {
+    const token = turnToken; let heard = '', lastAt = 0, lastLen = 0, finished = false;
+    // baseline: ignore anything the recognizer already had when this line began (earlier lines, the partner's voice)
+    let sess = recSession, baseFinal = recFinals.length, basePrefix = norm(recInterim);
+    const snapshot = () => {
+      if (recSession !== sess) { sess = recSession; baseFinal = 0; basePrefix = []; }
+      const segs = [...recFinals.slice(baseFinal), recInterim].filter(Boolean);
+      if (segs.length && basePrefix.length) {
+        const w = segs[0].split(/\s+/);
+        const nw = norm(segs[0]);
+        const same = basePrefix.every((b, k) => nw[k] === b);
+        segs[0] = w.slice(same ? basePrefix.length : Math.min(w.length, basePrefix.length)).join(' ');
+      }
+      return segs.join(' ').trim();
+    };
+    const finish = (how) => { if (finished) return; finished = true; clearInterval(tick); onTranscript = null; manualNext = null; promptHook = null; lastCueAt = performance.now(); lastCueIdx = i; res({ heard, hit: align(E, norm(heard)), how, sinceWord: lastAt ? Math.round(performance.now() - lastAt) : null }); };
+    onTranscript = () => {
+      if (token !== turnToken) return;
+      heard = snapshot(); const T = norm(heard);
+      if (T.length !== lastLen) { lastAt = performance.now(); lastLen = T.length; }
+      setHeard(heard);
+      const hit = align(E, T); ws.forEach((w, k) => w.classList.toggle('hit', !!hit[k]));
+      const got = hit.filter(Boolean).length, cov = got / Math.max(1, E.length);
+      if (T.length && T[T.length - 1] === 'line' && cov < 0.6 && !E.includes('line')) { promptMe(i); return; }
+      if (tailMatched(E, T) && cov >= 0.4) finish('match');
+    };
+    const tick = setInterval(() => {
+      if (token !== turnToken) return finish('cancel');
+      if (lastAt && performance.now() - lastAt > +$('pauseMs').value) {
+        const cov = align(E, norm(heard)).filter(Boolean).length / Math.max(1, E.length);
+        const quiet = performance.now() - lastAt;
+        if (cov >= 0.8 || (cov >= 0.35 && quiet > +$('pauseMs').value * 2.5)) finish('pause');
+      }
+    }, 50);
+    manualNext = () => finish('manual');
+    promptHook = () => promptMe(i);
+  });
+}
+let manualNext = null, promptHook = null, lastCueAt = 0, lastCueIdx = -1;
+function notePartnerStart() {
+  if (!lastCueAt || lastCueIdx < 0) return;
+  const ms = Math.round(performance.now() - lastCueAt); lastCueAt = 0;
+  const s = $('cue' + lastCueIdx)?.querySelector('.score'); if (s) s.textContent += ` · partner replied ${(ms / 1000).toFixed(1)}s after cue`;
+}
+async function promptMe(i) {
+  const c = cues[i]; const el = $('cue' + i); if (el) el.classList.add('reveal');
+  setStatus(`Prompting your line…`, 'speak');
+  const saveHeard = $('heard').textContent;
+  await speakBrowser(spokenText(c), '__prompt', turnToken);
+  setStatus(`<b>Your line</b> as ${esc(me)}. Listening… <kbd>Space</kbd> when done, <kbd>L</kbd> to hear it.`, 'live');
+  setHeard(saveHeard);
+}
+
+// ---------- run loop ----------
+async function run() {
+  running = true; $('run').textContent = '■ Stop'; turnToken++; document.body.classList.add('live');
+  if (tp) { tpScrolling = false; cancelAnimationFrame(tpRaf); $('tpPlay').textContent = '▶ Scroll'; tpWords.forEach(w => w.el.classList.remove('now')); }
+  if (SR) startRec(); else setStatus('This browser has no speech recognition. Use Chrome or Edge. Press Space to advance manually.');
+  while (running && idx < cues.length) {
+    const token = turnToken; const c = cues[idx];
+    if (!sceneOn(c.scene) || c.type === 'scene') { idx++; continue; }
+    setCurrent(idx);
+    if (c.type === 'action') {
+      if ($('readAction').checked) { setStatus(`<i>${esc(c.text)}</i>`, 'speak'); await speakBrowser(c.text, '__narrator', token); if (token !== turnToken) continue; }
+      idx++; continue;
+    }
+    if (c.character === me) {
+      if (!micBlocked) setStatus(`<b>Your line</b> as ${esc(me)}. Listening… (Next when done, Line? to hear it)`, 'live');
+      else setStatus(`<b>Your line</b> as ${esc(me)}. Mic blocked, tap Next when done.`, 'live');
+      setHeard('');
+      prefetch(idx + 1);
+      const r = await listenForLine(idx);
+      if (token !== turnToken) continue;
+      const E = norm(spokenText(c)); const got = r.hit.filter(Boolean).length;
+      c.score = r.how === 'manual' ? 'skipped with Space' : `${got}/${E.length} words heard${r.how === 'pause' ? ' (ended on pause)' : ''}${r.sinceWord != null ? ` · cued ${(r.sinceWord / 1000).toFixed(1)}s after last word` : ''}`;
+      const el = $('cue' + idx); if (el) { const ws = el.querySelectorAll('.w'); ws.forEach((w, k) => { w.classList.toggle('hit', !!r.hit[k]); w.classList.toggle('miss', !r.hit[k] && r.how !== 'manual'); }); let s = el.querySelector('.score'); if (!s) { s = document.createElement('div'); s.className = 'score'; el.append(s); } s.textContent = c.score; }
+      idx++;
+    } else {
+      setStatus(`<b>${esc(c.character)}</b> speaking…`, 'speak');
+      await new Promise(r => setTimeout(r, +$('beatMs').value));
+      if (token !== turnToken) continue;
+      prefetch(idx + 1);
+      await speak(spokenText(c), c.character, idx);
+      if (token !== turnToken) continue;
+      idx++;
+    }
+  }
+  if (running && idx >= cues.length) { setStatus('End of sides. Click any line to start again from there.'); idx = firstPlayable(0); }
+  stop(false);
+}
+function stop(report = true) {
+  running = false; turnToken++; stopSpeaking(); stopRec(); setHeard(''); document.body.classList.remove('live');
+  $('run').textContent = '▶ Start';
+  if (tp && $('tpFollow').checked) tpListen();
+  if (report) setStatus('Stopped. Click a line to set where to start, then press Start.');
+}
+
+// ---------- controls ----------
+function unlockAudio() {
+  try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch {}
+  try { const a = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='); a.play().catch(() => {}); } catch {}
+}
+$('run').onclick = () => { if (running) stop(); else { unlockAudio(); run(); } };
+$('next').onclick = () => { if (!running) { setCurrent(firstPlayable(idx + 1)); return; } if (manualNext) manualNext(); else { turnToken++; stopSpeaking(); idx++; } };
+$('back').onclick = () => { let i = idx - 1; while (i > 0 && (cues[i].type !== 'line' || !sceneOn(cues[i].scene))) i--; if (running) { turnToken++; stopSpeaking(); } idx = Math.max(0, i); setCurrent(idx); };
+$('repeat').onclick = () => { let i = idx; while (i > 0 && !(cues[i].type === 'line' && cues[i].character !== me)) i--; if (running) { turnToken++; stopSpeaking(); } idx = i; setCurrent(idx); };
+$('prompt').onclick = () => { if (promptHook) promptHook(); else { const c = cues[idx]; if (c && c.type === 'line') { $('cue' + idx)?.classList.add('reveal'); speakBrowser(spokenText(c), '__prompt', turnToken); } } };
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input,select,textarea')) return;
+  if (tp && !running) {
+    if (e.code === 'Space') { e.preventDefault(); tpToggleScroll(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); $('tpSpeed').value = +$('tpSpeed').value + 5; store.set('tpSpeed', +$('tpSpeed').value); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); $('tpSpeed').value = +$('tpSpeed').value - 5; store.set('tpSpeed', +$('tpSpeed').value); }
+    else if (e.key === 'h' || e.key === 'H') document.body.classList.toggle('hidebar');
+    else if (e.key === 'm' || e.key === 'M') { $('tpMirror').checked = !$('tpMirror').checked; $('tpMirror').onchange(); }
+    else if (e.key === 'f' || e.key === 'F') $('tpFull').click();
+    else if (e.key === 'Escape') tpExit();
+    return;
+  }
+  if (e.key === 't' || e.key === 'T') { tpEnter(); return; }
+  if (e.code === 'Space') { e.preventDefault(); $('next').click(); }
+  else if (e.key === 'r' || e.key === 'R') $('repeat').click();
+  else if (e.key === 'l' || e.key === 'L') $('prompt').click();
+  else if (e.key === 'b' || e.key === 'B') $('back').click();
+  else if (e.key === 'Escape' && running) stop();
+});
+$('me').onchange = () => { me = $('me').value; store.set('me', me); for (const c of cues) delete c.score; recomputeScenes(); audioCache.clear(); idx = firstPlayable(0); buildVoiceRows(); render(); };
+$('hide').onchange = () => { store.set('hide', $('hide').checked); render(); };
+$('skipScenes').onchange = () => { store.set('skip', $('skipScenes').checked); idx = firstPlayable(0); render(); };
+$('rate').oninput = () => store.set('rate', +$('rate').value);
+$('pauseMs').oninput = () => { $('pauseVal').textContent = ($('pauseMs').value / 1000).toFixed(1) + 's'; store.set('pauseMs', +$('pauseMs').value); };
+$('beatMs').oninput = () => { $('beatVal').textContent = ($('beatMs').value / 1000).toFixed(2) + 's'; store.set('beatMs', +$('beatMs').value); };
+$('readAction').onchange = () => store.set('readAction', $('readAction').checked);
+$('engine').onchange = () => { store.set('engine', $('engine').value); audioCache.clear(); buildVoiceRows(); };
+$('elKey').onchange = () => store.set('elKey', $('elKey').value);
+$('elLoad').onclick = async () => {
+  const key = $('elKey').value.trim(); if (!key) return setStatus('Enter your ElevenLabs API key first.');
+  try { const r = await fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': key } }); if (!r.ok) throw new Error(r.status); elVoiceList = (await r.json()).voices || []; store.set('elVoiceList', elVoiceList); $('engine').value = 'eleven'; store.set('engine', 'eleven'); buildVoiceRows(); setStatus(`Loaded ${elVoiceList.length} ElevenLabs voices.`); }
+  catch (e) { setStatus('Could not load ElevenLabs voices (' + esc(String(e.message)) + '). Check the key.'); }
+};
+$('file').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  setStatus('Reading ' + esc(f.name) + '…');
+  try {
+    if (/\.txt$/i.test(f.name)) setScript(parseText(await f.text()), f.name);
+    else setScript(await parsePdf(await f.arrayBuffer()), f.name);
+  } catch (err) { setStatus('Could not parse that file: ' + esc(err.message)); }
+  e.target.value = '';
+};
+
+// ---------- init ----------
+$('hide').checked = store.get('hide', false);
+$('skipScenes').checked = store.get('skip', true);
+$('rate').value = store.get('rate', 1);
+if (!store.get('v2', false)) { store.set('v2', true); store.set('pauseMs', 900); store.set('beatMs', 100); }
+$('pauseMs').value = store.get('pauseMs', 900); $('pauseVal').textContent = ($('pauseMs').value / 1000).toFixed(1) + 's';
+$('beatMs').value = store.get('beatMs', 100); $('beatVal').textContent = ($('beatMs').value / 1000).toFixed(2) + 's';
+$('readAction').checked = store.get('readAction', false);
+$('engine').value = store.get('engine', 'browser');
+$('elKey').value = store.get('elKey', '');
+elVoiceList = store.get('elVoiceList', []);
+const saved = store.get('script', null);
+if (saved && saved.cues?.length) setScript(saved.cues.map(c => ({ ...c, score: undefined })), saved.name);
+else {
+  // try the bundled sample next to this page
+  fetch('CF_BIANCA_sides.pdf').then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => parsePdf(b)).then(l => setScript(l, 'CF_BIANCA_sides.pdf')).catch(() => render());
+}
+
+// ---------- teleprompter ----------
+let tp = false, tpScrolling = false, tpRaf = null, tpLast = 0, tpPos = 0, tpWords = [];
+function tpEnter() {
+  tp = true; document.body.classList.add('tp'); document.body.classList.toggle('mirror', $('tpMirror').checked); document.body.classList.toggle('flipv', $('tpFlip').checked);
+  document.documentElement.style.setProperty('--tp-size', $('tpSize').value + 'px');
+  tpRender(); tpPos = 0;
+  if (running) setCurrent(idx); else { window.scrollTo(0, 0); if ($('tpFollow').checked) tpListen(); }
+}
+function tpExit() {
+  tp = false; tpScrolling = false; cancelAnimationFrame(tpRaf); if (!running) stopRec(); document.body.classList.remove('tp', 'hidebar'); if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  $('tpPlay').textContent = '▶ Scroll'; render(); if (running) setCurrent(idx);
+}
+function tpRender() {
+  render();
+  if (!$('tpAll').checked) document.querySelectorAll('.cue.partner').forEach(d => d.style.display = 'none');
+  if (!running) document.querySelectorAll('.cue.current').forEach(d => d.classList.remove('current'));
+  tpWords = [...document.querySelectorAll('.cue .w')].filter(w => w.offsetParent !== null).map(w => ({ el: w, t: norm(w.textContent)[0] || '' }));
+}
+function tpToggleScroll() {
+  tpScrolling = !tpScrolling; $('tpPlay').textContent = tpScrolling ? '❚❚ Pause' : '▶ Scroll';
+  if (tpScrolling) { tpLast = performance.now(); tpRaf = requestAnimationFrame(tpStep); }
+}
+function tpStep(now) {
+  if (!tpScrolling) return;
+  const dt = (now - tpLast) / 1000; tpLast = now;
+  window.scrollBy(0, +$('tpSpeed').value * dt);
+  if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 2) { tpScrolling = false; $('tpPlay').textContent = '▶ Scroll'; return; }
+  tpRaf = requestAnimationFrame(tpStep);
+}
+function tpListen() {
+  if (!SR) return;
+  startRec();
+  onTranscript = () => {
+    const H = norm([...recFinals, recInterim].join(' ')).slice(-6); if (H.length < 2) return;
+    // search a window ahead of the current position for the best fuzzy alignment of the recent words
+    let best = { score: 0, end: -1 };
+    const lo = Math.max(0, tpPos - 4), hi = Math.min(tpWords.length - 1, tpPos + 60);
+    for (let st = lo; st <= hi; st++) {
+      let j = st, got = 0, last = -1;
+      for (const h of H) { for (let k = j; k < Math.min(tpWords.length, j + 4); k++) { if (tpWords[k].t && wordOk(tpWords[k].t, h)) { got++; last = k; j = k + 1; break; } } }
+      const score = got / H.length - (st - tpPos > 25 ? 0.2 : 0);
+      if (score > best.score) best = { score, end: last };
+    }
+    if (best.score >= 0.6 && best.end >= 0) {
+      tpPos = best.end + 1;
+      tpWords.forEach(w => w.el.classList.remove('now'));
+      const el = tpWords[best.end].el; el.classList.add('now');
+      const y = el.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.35;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  };
+}
+$('tpBtn').onclick = tpEnter;
+$('tpExit').onclick = tpExit;
+$('tpPlay').onclick = tpToggleScroll;
+$('tpTop').onclick = () => { window.scrollTo({ top: 0 }); tpPos = 0; tpWords.forEach(w => w.el.classList.remove('now')); };
+$('tpFull').onclick = () => document.documentElement.requestFullscreen?.().catch(() => {});
+$('tpSize').oninput = () => { document.documentElement.style.setProperty('--tp-size', $('tpSize').value + 'px'); store.set('tpSize', +$('tpSize').value); };
+$('tpSpeed').oninput = () => store.set('tpSpeed', +$('tpSpeed').value);
+$('tpMirror').onchange = () => { document.body.classList.toggle('mirror', $('tpMirror').checked); store.set('tpMirror', $('tpMirror').checked); };
+$('tpFlip').onchange = () => { document.body.classList.toggle('flipv', $('tpFlip').checked); store.set('tpFlip', $('tpFlip').checked); };
+$('tpAll').onchange = () => { store.set('tpAll', $('tpAll').checked); tpRender(); };
+$('tpFollow').onchange = () => { store.set('tpFollow', $('tpFollow').checked); if (tp) { if ($('tpFollow').checked) tpListen(); else stopRec(); } };
+$('tpSize').value = store.get('tpSize', 44); $('tpSpeed').value = store.get('tpSpeed', 60);
+$('tpMirror').checked = store.get('tpMirror', false); $('tpFlip').checked = store.get('tpFlip', false);
+$('tpAll').checked = store.get('tpAll', true); $('tpFollow').checked = store.get('tpFollow', true);
+
+// debug hooks for testing without a microphone
+window.__sp = { get cues() { return cues; }, feed: t => { recInterim = t; onTranscript && onTranscript(); }, reset: () => { recSession++; recFinals = []; recInterim = ''; }, parsePdf, parseText, norm, align, tailMatched, get tpPos() { return tpPos; }, tpListen };
+</script>
+</body>
+</html>
